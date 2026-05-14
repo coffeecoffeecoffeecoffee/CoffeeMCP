@@ -13,6 +13,9 @@ let package = Package(
             dependencies: [
                 .product(name: "MCP", package: "swift-sdk"),
             ]
-        )
+        ),
+        .testTarget(
+            name: "CoffeeMCPTests"
+        ),
     ]
 )
