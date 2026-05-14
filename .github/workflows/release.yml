@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+
+jobs:
+  release:
+    name: Build and Publish
+    runs-on: macos-15
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build arm64
+        run: swift build -c release --arch arm64
+
+      - name: Build x86_64
+        run: swift build -c release --arch x86_64
+
+      - name: Create universal binary
+        run: |
+          lipo -create -output CoffeeMCP \
+            .build/arm64-apple-macosx/release/CoffeeMCP \
+            .build/x86_64-apple-macosx/release/CoffeeMCP
+
+      - name: Package release archive
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          ARCHIVE="CoffeeMCP-${VERSION}-macos.tar.gz"
+          tar -czf "$ARCHIVE" CoffeeMCP
+          SHA256=$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+          echo "SHA256=$SHA256" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$VERSION" \
+            --title "$VERSION" \
+            --generate-notes \
+            "$ARCHIVE"
+
+      # Requires a PAT with repo scope on the tap repo, stored as
+      # secret TAP_GITHUB_TOKEN in this repo's settings.
+      # Create one at: GitHub → Settings → Developer settings → Personal access tokens
+      - name: Open PR on homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          git clone \
+            "https://x-access-token:${GH_TOKEN}@github.com/coffeecoffeecoffeecoffee/homebrew-tap.git" \
+            homebrew-tap
+
+          cd homebrew-tap
+
+          SEMVER="${VERSION#v}"
+          RELEASE_URL="https://github.com/coffeecoffeecoffeecoffee/CoffeeMCP/releases/download/${VERSION}/CoffeeMCP-${VERSION}-macos.tar.gz"
+
+          sed -i '' "s|url \".*\"|url \"${RELEASE_URL}\"|" Formula/coffee-mcp.rb
+          sed -i '' "s|sha256 \".*\"|sha256 \"${SHA256}\"|" Formula/coffee-mcp.rb
+          sed -i '' "s|version \".*\"|version \"${SEMVER}\"|" Formula/coffee-mcp.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          BRANCH="bump-coffee-mcp-${VERSION}"
+          git checkout -b "$BRANCH"
+          git add Formula/coffee-mcp.rb
+          git commit -m "coffee-mcp ${VERSION}"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --repo coffeecoffeecoffeecoffee/homebrew-tap \
+            --title "coffee-mcp ${VERSION}" \
+            --body "Automated bump to ${VERSION}." \
+            --base main \
+            --head "$BRANCH"
