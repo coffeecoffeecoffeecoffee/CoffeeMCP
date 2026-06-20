@@ -7,7 +7,7 @@ enum CoffeeError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .httpError(let code, let body): "HTTP \(code): \(body)"
-        case .missingToken: "No auth token — call login first or set COFFEE_JWT_TOKEN"
+        case .missingToken: "No auth token — call login first, or set COFFEE_JWT_TOKEN, or set COFFEE_EMAIL and COFFEE_PASSWORD"
         }
     }
 }

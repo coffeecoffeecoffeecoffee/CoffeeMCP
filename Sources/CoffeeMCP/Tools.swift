@@ -253,13 +253,13 @@ enum CoffeeTools {
             return jsonString(try await client.request("users", method: "POST", bodyData: body))
 
         case "get_current_user":
-            let token = try await requireToken(state)
+            let token = try await requireToken(state, client: client)
             return jsonString(try await client.request("users/me", token: token))
 
         case "get_user":
             struct Args: Decodable { let id: String }
             let a = try decodeArgs(Args.self, from: args)
-            let token = try await requireToken(state)
+            let token = try await requireToken(state, client: client)
             return jsonString(try await client.request("users/\(a.id)", token: token))
 
         // MARK: Groups
@@ -275,14 +275,14 @@ enum CoffeeTools {
         case "create_group":
             struct Args: Decodable { let name: String; let short: String }
             let a = try decodeArgs(Args.self, from: args)
-            let token = try await requireToken(state)
+            let token = try await requireToken(state, client: client)
             let body = try JSONEncoder().encode(["name": a.name, "short": a.short])
             return jsonString(try await client.request("groups", method: "POST", bodyData: body, token: token))
 
         case "update_group":
             struct Args: Decodable { let id: String; let name: String?; let short: String?; let imageURL: String? }
             let a = try decodeArgs(Args.self, from: args)
-            let token = try await requireToken(state)
+            let token = try await requireToken(state, client: client)
             var payload: [String: String] = [:]
             if let v = a.name { payload["name"] = v }
             if let v = a.short { payload["short"] = v }
@@ -293,7 +293,7 @@ enum CoffeeTools {
         case "delete_group":
             struct Args: Decodable { let id: String }
             let a = try decodeArgs(Args.self, from: args)
-            let token = try await requireToken(state)
+            let token = try await requireToken(state, client: client)
             _ = try await client.request("groups/\(a.id)", method: "DELETE", token: token)
             return "Group \(a.id) deleted."
 
@@ -324,7 +324,7 @@ enum CoffeeTools {
                 let latitude: Double?; let longitude: Double?; let applePlaceID: String?
             }
             let a = try decodeArgs(Args.self, from: args)
-            let token = try await requireToken(state)
+            let token = try await requireToken(state, client: client)
             var location: [String: Any] = ["address": a.address, "title": a.title ?? a.address]
             if let lat = a.latitude { location["latitude"] = lat }
             if let lon = a.longitude { location["longitude"] = lon }
@@ -352,7 +352,7 @@ enum CoffeeTools {
                 let name: String; let start_at: String; let end_at: String
             }
             let a = try decodeArgs(Args.self, from: args)
-            let token = try await requireToken(state)
+            let token = try await requireToken(state, client: client)
             let payload: [String: Any] = [
                 "group_id": a.group_id,
                 "venue": ["id": a.venue_id],
@@ -369,7 +369,7 @@ enum CoffeeTools {
                 let name: String?; let start_at: String?; let end_at: String?; let image_url: String?
             }
             let a = try decodeArgs(Args.self, from: args)
-            let token = try await requireToken(state)
+            let token = try await requireToken(state, client: client)
             var payload: [String: Any] = [:]
             if let v = a.group_id { payload["group_id"] = v }
             if let v = a.venue_id { payload["venue"] = ["id": v] }
@@ -383,7 +383,7 @@ enum CoffeeTools {
         case "delete_event":
             struct Args: Decodable { let id: String }
             let a = try decodeArgs(Args.self, from: args)
-            let token = try await requireToken(state)
+            let token = try await requireToken(state, client: client)
             _ = try await client.request("events/\(a.id)", method: "DELETE", token: token)
             return "Event \(a.id) deleted."
 
@@ -407,20 +407,20 @@ enum CoffeeTools {
         case "create_tag":
             struct Args: Decodable { let name: String }
             let a = try decodeArgs(Args.self, from: args)
-            let token = try await requireToken(state)
+            let token = try await requireToken(state, client: client)
             let body = try JSONEncoder().encode(["name": a.name])
             return jsonString(try await client.request("tags", method: "POST", bodyData: body, token: token))
 
         case "attach_tag":
             struct Args: Decodable { let tagID: String; let userID: String }
             let a = try decodeArgs(Args.self, from: args)
-            let token = try await requireToken(state)
+            let token = try await requireToken(state, client: client)
             return jsonString(try await client.request("tags/\(a.tagID)/attach/\(a.userID)", method: "POST", token: token))
 
         case "delete_tag":
             struct Args: Decodable { let id: String }
             let a = try decodeArgs(Args.self, from: args)
-            let token = try await requireToken(state)
+            let token = try await requireToken(state, client: client)
             _ = try await client.request("tags/\(a.id)", method: "DELETE", token: token)
             return "Tag \(a.id) deleted."
 
@@ -429,7 +429,7 @@ enum CoffeeTools {
         case "upload_media":
             struct Args: Decodable { let filePath: String }
             let a = try decodeArgs(Args.self, from: args)
-            let token = try await requireToken(state)
+            let token = try await requireToken(state, client: client)
             let fileURL = URL(fileURLWithPath: a.filePath)
             return jsonString(try await client.requestMultipart("media/upload", fileURL: fileURL, token: token))
 
@@ -443,8 +443,20 @@ enum CoffeeTools {
         }
     }
 
-    private static func requireToken(_ state: AppState) async throws -> String {
-        guard let t = await state.token else { throw CoffeeError.missingToken }
-        return t
+    private static func requireToken(_ state: AppState, client: CoffeeClient) async throws -> String {
+        if let t = await state.token { return t }
+        if let email = state.email, let password = state.password {
+            let data = try await client.request(
+                "users/login",
+                method: "POST",
+                basicAuth: (email: email, password: password)
+            )
+            if let json = try? JSONDecoder().decode([String: Value].self, from: data),
+               case .string(let token) = json["jwt-token"] {
+                await state.setToken(token)
+                return token
+            }
+        }
+        throw CoffeeError.missingToken
     }
 }
