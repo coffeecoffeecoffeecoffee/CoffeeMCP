@@ -32,8 +32,9 @@ The binary will be at `.build/release/CoffeeMCP`.
 
 ## Usage with Claude Desktop
 
-Add to your MCP config (`~/Library/Application Support/Claude/claude_desktop_config.json`).
-The server supports the standard MCP server properties — `command`, `args`, and `env`:
+Open **Settings → Developer → Edit Config**, or edit the file directly at
+`~/Library/Application Support/Claude/claude_desktop_config.json`. The server supports
+the standard MCP server properties — `command`, `args`, and `env`:
 
 ```json
 {
@@ -50,9 +51,20 @@ The server supports the standard MCP server properties — `command`, `args`, an
 }
 ```
 
-If you built from source, use the path to `.build/release/CoffeeMCP` instead.
+Then fully quit and reopen Claude Desktop (a window-close isn't enough), and ask Claude
+about coffee events, groups, venues, and more.
 
-Then ask Claude about coffee events, groups, venues, and more.
+> **Use an absolute path for `command`.** GUI apps don't inherit your shell's `PATH`, so
+> a bare `coffee-mcp` won't resolve. Find the path with `which coffee-mcp`:
+> Homebrew installs to `/opt/homebrew/bin/coffee-mcp` on Apple Silicon and
+> `/usr/local/bin/coffee-mcp` on Intel. If you built from source, use the full path to
+> `.build/release/CoffeeMCP`.
+>
+> For the same reason, credentials must go in the `env` block above — a GUI launch won't
+> see variables exported in your shell profile.
+
+The same `command` / `args` / `env` config works in other GUI MCP clients (Cursor, VS
+Code, etc.); only the location of the config file differs.
 
 ## Configuration
 
