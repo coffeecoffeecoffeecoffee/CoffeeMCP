@@ -11,6 +11,13 @@ brew tap coffeecoffeecoffeecoffee/tap
 brew install coffee-mcp
 ```
 
+To pick up future releases, update the tap and upgrade:
+
+```bash
+brew update
+brew upgrade coffee-mcp
+```
+
 ### Build from source
 
 Requires macOS 13+ and Swift 6.0+.
