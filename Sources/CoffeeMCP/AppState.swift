@@ -2,8 +2,8 @@ import Foundation
 
 actor AppState {
     var token: String?
-    let email: String?
-    let password: String?
+    nonisolated let email: String?
+    nonisolated let password: String?
 
     init() {
         let env = ProcessInfo.processInfo.environment
